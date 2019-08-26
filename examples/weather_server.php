@@ -3,10 +3,15 @@ error_reporting(E_ALL);
 ini_set('display_errors', '1');
 ini_set('memory_limit', '-1');
 
+use Swoole\Coroutine\Redis;
+use Swoole\Coroutine\Http\Client;
+
 class HttpServ
 {
     public $http;
     public $setting = array();
+    const IP = '127.0.0.1';
+    const PORT = 6379;
 
     public function __construct()
     {
@@ -32,7 +37,7 @@ class HttpServ
                 $response->end('Not Found');
                 return;
             }
-            $this->getResult($response);
+            $this->getResult($request,$response);
         });
     }
 
@@ -106,8 +111,49 @@ class HttpServ
 //        });
     }
 
-    function getResult($response)
+    public function returnResult($response,$data)
     {
+        $response->header('Content-Type', 'application/json');
+        $response->write($data);
+        $response->end();
+    }
+
+    function getResult($request,$response)
+    {
+        $redis = new Redis();
+        $redis->connect(HttpServ::IP,HttpServ::PORT);
+
+        $table = $request->get['table'];
+        $id = $request->get['id'];
+
+        if(empty($id) || empty($table)){
+            $this->returnResult($response,'{}');
+            return;
+        }
+
+        $cacheKey = "recom:hbase:table:{$table}:id:{$id}";
+        $cacheData = $redis->get($cacheKey);
+
+        if(!empty($cacheData)){
+            $this->returnResult($response,$cacheData);
+            return;
+        }
+
+        $client = new Client('cache.recommend.51fanli.it',80);
+
+        $client->get("/recom/hbase/getData?table={$table}&id={$id}");
+
+        $body = $client->body;
+
+        if(!empty($body)){
+            $redis->set($cacheKey,$body);
+            $this->returnResult($response,$body);
+            return;
+        }else{
+            $this->returnResult($response,'{}');
+            return;
+        }
+
         $client = new swoole_redis();
         $ip = "127.0.0.1";
         $port = 6379;

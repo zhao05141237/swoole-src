@@ -10,7 +10,7 @@ class Server
     {
         $this->server = new Swoole\Http\Server("0.0.0.0", 9502, SWOOLE_BASE);
         $this->server->set([
-            'worker_num' => 1,
+            'worker_num' => 2,
         ]);
 
         // $this->server->on('Connect', [$this, 'onConnect']);

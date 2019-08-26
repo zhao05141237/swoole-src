@@ -1,24 +1,26 @@
 <?php
 go(function () {
     $count = 0;
+    $cid = co::getCid();
     go(function () use (&$count) {
-        echo "task 1 start\n";
-        co::sleep(0.2);
-        echo "task 1 resume count $count\n";
-        if (++$count === 2) {
-            co::resume(1);
-        }
-        echo "task 1 end\n";
+        $cid = co::getCid();
+        echo "{$cid} {$count}\n";
+        echo "task {$cid} start\n";
+        co::sleep(0.5);
+        co::resume(1);
+        echo "task {$cid} resume count $count\n";
+        echo "task {$cid} end\n";
     });
     go(function () use (&$count) {
-        echo "task 2 start\n";
-        co::sleep(0.1);
-        echo "task 2 resume count $count\n";
-        if (++$count === 2) {
-            co::resume(1);
-        }
-        echo "task 2 end\n";
+        $cid = co::getCid();
+        echo "{$cid} {$count}\n";
+        echo "task {$cid} start\n";
+        co::sleep(0.9);
+        echo "task {$cid} resume count $count\n";
+        echo "task {$cid} end\n";
     });
+    echo $cid.' '.$count."\n";
     co::suspend();
+//    co::resume(1);
 });
 echo "main \n";

@@ -7,8 +7,8 @@ co::create(function() {
     $server = array(
         'host' => '127.0.0.1',
         'user' => 'root',
-        'password' => 'root',
-        'database' => 'test',
+        'password' => 'GWx=qe-5*(2S',
+        'database' => 'tuniu',
     );
 
     echo "connect\n";
@@ -16,7 +16,7 @@ co::create(function() {
     var_dump($ret1);
 
     echo "prepare [1]\n";
-    $stmt1 = $db->prepare('SELECT * FROM userinfo WHERE id=?');
+    $stmt1 = $db->prepare('SELECT * FROM users WHERE id=?');
     var_dump($stmt1);
     if ($stmt1 == false)
     {
@@ -28,7 +28,7 @@ co::create(function() {
     var_dump(count($ret3));
 
     echo "prepare [2]\n";
-    $stmt2 = $db->prepare('SELECT * FROM userinfo WHERE id > ? and level > ?');
+    $stmt2 = $db->prepare('SELECT * FROM users WHERE id > ?');
     var_dump($stmt2);
     if ($stmt2 == false)
     {
@@ -36,6 +36,6 @@ co::create(function() {
     }
 
     echo "execute\n";
-    $ret4 = $stmt2->execute(array(10, 99));
+    $ret4 = $stmt2->execute(array(10));
     var_dump($ret4);
 });

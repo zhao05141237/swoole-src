@@ -3,22 +3,26 @@
 use Swoole\Coroutine\Server;
 use Swoole\Coroutine\Server\Connection;
 
-go(function () {
+$scheduler = new \Co\Scheduler();
+
+$scheduler->add(function () {
     $server = new Server('0.0.0.0', 9501, false);
-
-    $server->handle(function (Connection $conn) {
+    $server->set([
+        'worker_num'=>4,
+    ]);
+    $server->handle(function (Connection $conn) use ($server){
         while (true) {
-
             $data = $conn->recv();
             if (!$data) {
                 break;
             }
             $conn->send("hello $data");
+            break;
         }
         $conn->close();
+        $server->shutdown();
     });
-
     $server->start();
 });
 
-swoole_event::wait();
+$scheduler->start();

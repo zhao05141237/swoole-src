@@ -13,7 +13,7 @@ $serv->on('Receive', function(swoole_server $serv, $fd, $reactor_id, $data) {
     $tasks[] = mt_rand(1000, 9999);
     //等待所有Task结果返回，超时为10s
     var_dump($tasks);
-    $results = $serv->taskWaitMulti($tasks, 2);
+    $results = $serv->taskWaitMulti($tasks, 0.2);
     var_dump($results);
 });
 
@@ -32,7 +32,7 @@ $serv->on('Task', function (swoole_server $serv, $task_id, $reactor_id, $data) {
     {
         usleep(200000);
     }
-    return "hello world.[{$data}]";
+    $serv->finish("hello world.[{$data}]");
 });
 
 $serv->on('Finish', function (swoole_server $serv, $task_id, $data) {

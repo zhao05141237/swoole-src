@@ -7,8 +7,8 @@ go(function() {
     $server = array(
         'host' => '127.0.0.1',
         'user' => 'root',
-        'password' => 'root',
-        'database' => 'test',
+        'password' => 'GWx=qe-5*(2S',
+        'database' => 'tuniu',
     );
 
     echo "connect\n";

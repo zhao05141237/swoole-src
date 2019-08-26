@@ -1,6 +1,6 @@
 <?php
-go(function () {
-	$server = new Co\Http\Server("127.0.0.1", 9501, $ssl);
+Swoole\Coroutine::create(function () {
+	$server = new \Swoole\Coroutine\Http\Server("127.0.0.1", 9501, false);
 	/**
 	 * 静态文件处理器
 	 */

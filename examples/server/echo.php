@@ -1,8 +1,8 @@
 <?php
 $serv = new swoole_server("0.0.0.0", 9501);
-//$serv->on('connect', function ($serv, $fd, $reactor_id){
-//	echo "[#".posix_getpid()."]\tClient@[$fd:$reactor_id]: Connect.\n";
-//});
+$serv->on('connect', function ($serv, $fd, $reactor_id){
+	echo "[#".posix_getpid()."]\tClient@[$fd:$reactor_id]: Connect.\n";
+});
 $serv->set(array(
     'worker_num' => 1,
 

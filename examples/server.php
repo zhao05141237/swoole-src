@@ -28,25 +28,6 @@ class G
         'enable_delay_receive'       => true,
         //'cpu_affinity_ignore' =>array(0,1)//如果你的网卡2个队列（或者没有多队列那么默认是cpu0来处理中断）,并且绑定了core 0和core 1,那么可以通过这个设置避免swoole的线程或者进程绑定到这2个core，防止cpu0，1被耗光而造成的丢包
     );
-
-    private static $buffers = array();
-
-    /**
-     * @param $fd
-     * @return swoole_buffer
-     */
-    static function getBuffer($fd, $create = true)
-    {
-        if (!isset(self::$buffers[$fd]))
-        {
-            if (!$create)
-            {
-                return false;
-            }
-            self::$buffers[$fd] = new swoole_buffer(1024 * 128);
-        }
-        return self::$buffers[$fd];
-    }
 }
 
 if (isset($argv[1]) and $argv[1] == 'daemon') {
@@ -58,10 +39,10 @@ if (isset($argv[1]) and $argv[1] == 'daemon') {
 //$mode = SWOOLE_BASE;
 $mode = SWOOLE_PROCESS;
 
-$serv = new swoole_server("0.0.0.0", 9501, $mode, SWOOLE_SOCK_TCP);
-$serv->listen('0.0.0.0', 9502, SWOOLE_SOCK_UDP);
-$serv->listen('::', 9503, SWOOLE_SOCK_TCP6);
-$serv->listen('::', 9504, SWOOLE_SOCK_UDP6);
+$serv = new swoole_server("0.0.0.0", 9503, $mode, SWOOLE_SOCK_TCP);
+$serv->listen('0.0.0.0', 9504, SWOOLE_SOCK_UDP);
+$serv->listen('::', 9505, SWOOLE_SOCK_TCP6);
+$serv->listen('::', 9506, SWOOLE_SOCK_UDP6);
 $process1 = new swoole_process(function ($worker) use ($serv) {
     global $argv;
     swoole_set_process_name("php {$argv[0]}: my_process1");
@@ -90,6 +71,19 @@ $process2 = new swoole_process(function ($worker) use ($serv) {
 }, false);
 
 //$serv->addprocess($process2);
+
+$process3 = new swoole_process(function (Swoole\Process $worker) use ($serv) {
+    global $argv;
+    swoole_set_process_name("php {$argv[0]}: my_process3");
+    while (true)
+    {
+        $msg = $worker->read();
+        foreach ($serv->connections as $conn) {
+            $serv->send($conn,$msg);
+        }
+    }
+});
+$serv->addProcess($process3);
 
 $serv->set(G::$config);
 $serv->set(['reactor_num' => 4]);
@@ -185,11 +179,6 @@ function my_onShutdown($serv)
 function my_onClose(swoole_server $serv, $fd, $reactor_id)
 {
     my_log("Client[$fd@$reactor_id]: fd=$fd is closed");
-    $buffer = G::getBuffer($fd);
-    if ($buffer)
-    {
-        $buffer->clear();
-    }
     //var_dump($serv->getClientInfo($fd));
 }
 
@@ -247,6 +236,7 @@ function my_onWorkerStart(swoole_server $serv, $worker_id)
     }
 	//forkChildInWorker();
 //	setTimerInWorker($serv, $worker_id);
+    var_dump(get_included_files()); //此数组中的文件表示进程启动前就加载了，所以无法reload
 }
 
 function my_onWorkerStop($serv, $worker_id)
@@ -262,6 +252,8 @@ function my_onPacket($serv, $data, $clientInfo)
 
 function my_onReceive(swoole_server $serv, $fd, $reactor_id, $data)
 {
+    global $process3;
+    $process3->write($data);
     my_log("Worker#{$serv->worker_pid} Client[$fd@$reactor_id]: received: $data");
     $cmd = trim($data);
     if($cmd == "reload")
@@ -422,12 +414,6 @@ function my_onReceive(swoole_server $serv, $fd, $reactor_id, $data)
     elseif($cmd == "fatalerror")
     {
         require __DIR__.'/php/error.php';
-    }
-    elseif($cmd == 'sendbuffer')
-    {
-        $buffer = G::getBuffer($fd);
-        $buffer->append("hello\n");
-        $serv->send($fd, $buffer);
     }
     elseif($cmd == 'defer')
     {

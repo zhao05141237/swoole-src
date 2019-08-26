@@ -1,4 +1,7 @@
 <?php
+
+use Swoole\Coroutine\Http\Client;
+
 $serv = new \swoole_http_server("127.0.0.1", 9503, SWOOLE_BASE);
 
 $serv->on('request', function ($req, $resp) {
@@ -29,8 +32,21 @@ $serv->on('request', function ($req, $resp) {
         $chan->push(['www.taobao.com' => substr(trim(strip_tags($cli->body)), 0, 100)]);
     });
 
+    go(function () use ($chan) {
+        $cli = new Swoole\Coroutine\Http\Client('www.fanli.com', 443, true);
+        $cli->set(['timeout' => 10]);
+        $cli->setHeaders([
+            'Host' => "www.fanli.com",
+            "User-Agent" => 'Chrome/49.0.2587.3',
+            'Accept' => 'text/html,application/xhtml+xml,application/xml',
+            'Accept-Encoding' => 'gzip',
+        ]);
+        $ret = $cli->get('/');
+        $chan->push(['www.fanli.com' => substr(trim(strip_tags($cli->body)), 0, 100)]);
+    });
+
     $result = [];
-    for ($i = 0; $i < 2; $i++)
+    for ($i = 0; $i < 3; $i++)
     {
         $result += $chan->pop();
     }

@@ -6,11 +6,13 @@ $table->column('data', swoole_table::TYPE_STRING, 64);
 $table->create();
 
 $serv = new swoole_server('127.0.0.1', 9501);
-$serv->set(['dispatch_mode' => 1]);
+//$serv->set(['dispatch_mode' => 1]);
+$serv->set(['worker_num'=>4]);
 $serv->table = $table;
 
 $serv->on('connect', function($serv, $fd, $reactor_id){
 	$info = $serv->connection_info($fd);
+	var_dump($info);
 	$serv->send($fd, "INFO: fd=$fd, reactor_id=$reactor_id, addr={$info['remote_ip']}:{$info['remote_port']}\n");
 });
 
