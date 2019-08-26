@@ -53,6 +53,7 @@ static PHP_METHOD(swoole_process, daemon);
 #ifdef HAVE_CPU_AFFINITY
 static PHP_METHOD(swoole_process, setaffinity);
 #endif
+static PHP_METHOD(swoole_process, set);
 static PHP_METHOD(swoole_process, setTimeout);
 static PHP_METHOD(swoole_process, setBlocking);
 static PHP_METHOD(swoole_process, start);
@@ -111,6 +112,10 @@ ZEND_BEGIN_ARG_INFO_EX(arginfo_swoole_process_setaffinity, 0, 0, 1)
 ZEND_END_ARG_INFO()
 #endif
 
+ZEND_BEGIN_ARG_INFO_EX(arginfo_swoole_process_set, 0, 0, 1)
+    ZEND_ARG_ARRAY_INFO(0, settings, 0)
+ZEND_END_ARG_INFO()
+
 ZEND_BEGIN_ARG_INFO_EX(arginfo_swoole_process_setTimeout, 0, 0, 1)
     ZEND_ARG_INFO(0, seconds)
 ZEND_END_ARG_INFO()
@@ -168,6 +173,7 @@ static const zend_function_entry swoole_process_methods[] =
 #ifdef HAVE_CPU_AFFINITY
     PHP_ME(swoole_process, setaffinity, arginfo_swoole_process_setaffinity, ZEND_ACC_PUBLIC | ZEND_ACC_STATIC)
 #endif
+    PHP_ME(swoole_process, set, arginfo_swoole_process_set, ZEND_ACC_PUBLIC)
     PHP_ME(swoole_process, setTimeout, arginfo_swoole_process_setTimeout, ZEND_ACC_PUBLIC)
     PHP_ME(swoole_process, setBlocking, arginfo_swoole_process_setBlocking, ZEND_ACC_PUBLIC)
     PHP_ME(swoole_process, useQueue, arginfo_swoole_process_useQueue, ZEND_ACC_PUBLIC)
@@ -537,8 +543,8 @@ static PHP_METHOD(swoole_process, signal)
         {
             swSignal_add(signo, NULL);
             signal_fci_caches[signo] = NULL;
-            SwooleG.main_reactor->defer(SwooleG.main_reactor, sw_zend_fci_cache_free, fci_cache);
-            SwooleG.main_reactor->signal_listener_num--;
+            SwooleTG.reactor->defer(SwooleTG.reactor, sw_zend_fci_cache_free, fci_cache);
+            SwooleTG.reactor->signal_listener_num--;
             RETURN_TRUE;
         }
         else
@@ -568,16 +574,16 @@ static PHP_METHOD(swoole_process, signal)
     }
 
     // for swSignalfd_setup
-    SwooleG.main_reactor->check_signalfd = 1;
+    SwooleTG.reactor->check_signalfd = 1;
 
     if (signal_fci_caches[signo])
     {
         // free the old fci_cache
-        SwooleG.main_reactor->defer(SwooleG.main_reactor, sw_zend_fci_cache_free, signal_fci_caches[signo]);
+        SwooleTG.reactor->defer(SwooleTG.reactor, sw_zend_fci_cache_free, signal_fci_caches[signo]);
     }
     else
     {
-        SwooleG.main_reactor->signal_listener_num++;
+        SwooleTG.reactor->signal_listener_num++;
     }
     signal_fci_caches[signo] = fci_cache;
 
@@ -605,7 +611,7 @@ static PHP_METHOD(swoole_process, alarm)
         RETURN_FALSE;
     }
 
-    if (SwooleG.timer.initialized != 0)
+    if (SwooleTG.timer)
     {
         php_swoole_fatal_error(E_WARNING, "cannot use both 'timer' and 'alarm' at the same time");
         RETURN_FALSE;
@@ -839,12 +845,12 @@ static PHP_METHOD(swoole_process, write)
     int ret;
 
     //async write
-    if (SwooleG.main_reactor)
+    if (SwooleTG.reactor)
     {
-        swConnection *_socket = swReactor_get(SwooleG.main_reactor, process->pipe);
+        swSocket *_socket = swReactor_get(SwooleTG.reactor, process->pipe);
         if (_socket && _socket->nonblock)
         {
-            ret = SwooleG.main_reactor->write(SwooleG.main_reactor, process->pipe, data, (size_t) data_len);
+            ret = swoole_event_write(process->pipe, data, (size_t) data_len);
         }
         else
         {
@@ -1163,6 +1169,27 @@ static PHP_METHOD(swoole_process, close)
     RETURN_TRUE;
 }
 
+static PHP_METHOD(swoole_process, set)
+{
+    zval *zset = NULL;
+    HashTable *vht = NULL;
+    zval *ztmp;
+
+    ZEND_PARSE_PARAMETERS_START(1, 1)
+        Z_PARAM_ARRAY(zset)
+    ZEND_PARSE_PARAMETERS_END_EX(RETURN_FALSE);
+
+    vht = Z_ARRVAL_P(zset);
+
+    swWorker *process = (swWorker *) swoole_get_object(ZEND_THIS);
+    php::process *proc = (php::process *) process->ptr2;
+
+    if (php_swoole_array_get_value(vht, "enable_coroutine", ztmp))
+    {
+        proc->enable_coroutine = zval_is_true(ztmp);
+    }
+}
+
 static PHP_METHOD(swoole_process, setTimeout)
 {
     double seconds;
@@ -1202,9 +1229,9 @@ static PHP_METHOD(swoole_process, setBlocking)
     {
         swSocket_set_nonblock(process->pipe);
     }
-    if (SwooleG.main_reactor)
+    if (SwooleTG.reactor)
     {
-        swConnection *_socket = swReactor_get(SwooleG.main_reactor, process->pipe);
+        swSocket *_socket = swReactor_get(SwooleTG.reactor, process->pipe);
         if (_socket)
         {
             _socket->nonblock = blocking ? 0 : 1;

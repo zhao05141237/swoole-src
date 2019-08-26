@@ -19,6 +19,7 @@
 #include "php_swoole.h"
 #include "swoole_cxx.h"
 #include "swoole_coroutine.h"
+#include "swoole_api.h"
 
 #include <string>
 
@@ -37,6 +38,10 @@ SW_API bool php_swoole_socket_set_protocol(swoole::coroutine::Socket *sock, zval
 SW_API bool php_swoole_client_set(swoole::coroutine::Socket *cli, zval *zset);
 
 php_stream *php_swoole_create_stream_from_socket(php_socket_t _fd, int domain, int type, int protocol STREAMS_DC);
+
+// timer
+SW_API bool php_swoole_timer_clear(swTimer_node *tnode);
+SW_API bool php_swoole_timer_clear_all();
 
 namespace zend {
 //-----------------------------------namespace begin--------------------------------------------

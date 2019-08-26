@@ -57,10 +57,6 @@ ZEND_BEGIN_ARG_INFO_EX(arginfo_swoole_coroutine_defer, 0, 0, 1)
     ZEND_ARG_CALLABLE_INFO(0, callback, 0)
 ZEND_END_ARG_INFO()
 
-ZEND_BEGIN_ARG_INFO_EX(arginfo_swoole_coroutine_exec, 0, 0, 1)
-    ZEND_ARG_INFO(0, command)
-ZEND_END_ARG_INFO()
-
 ZEND_BEGIN_ARG_INFO_EX(arginfo_swoole_client_select, 0, 0, 3)
     ZEND_ARG_INFO(1, read_array)
     ZEND_ARG_INFO(1, write_array)
@@ -99,7 +95,6 @@ const zend_function_entry swoole_functions[] =
     PHP_FE(swoole_async_set, arginfo_swoole_async_set)
     /*------swoole_coroutine------*/
     PHP_FE(swoole_coroutine_create, arginfo_swoole_coroutine_create)
-    PHP_FE(swoole_coroutine_exec, arginfo_swoole_coroutine_exec)
     PHP_FE(swoole_coroutine_defer, arginfo_swoole_coroutine_defer)
     PHP_FALIAS(go, swoole_coroutine_create, arginfo_swoole_coroutine_create)
     PHP_FALIAS(defer, swoole_coroutine_defer, arginfo_swoole_coroutine_defer)
@@ -363,8 +358,8 @@ PHP_MINIT_FUNCTION(swoole)
     /**
      * simple api
      */
-    SW_REGISTER_LONG_CONSTANT("SWOOLE_SOCK_SYNC", SW_SOCK_SYNC);
-    SW_REGISTER_LONG_CONSTANT("SWOOLE_SOCK_ASYNC", SW_SOCK_ASYNC);
+    SW_REGISTER_BOOL_CONSTANT("SWOOLE_SOCK_SYNC", SW_SOCK_SYNC);
+    SW_REGISTER_BOOL_CONSTANT("SWOOLE_SOCK_ASYNC", SW_SOCK_ASYNC);
 
     SW_REGISTER_LONG_CONSTANT("SWOOLE_SYNC", SW_FLAG_SYNC);
     SW_REGISTER_LONG_CONSTANT("SWOOLE_ASYNC", SW_FLAG_ASYNC);
@@ -568,6 +563,7 @@ PHP_MINIT_FUNCTION(swoole)
     // coroutine
     php_swoole_async_coro_minit(module_number);
     php_swoole_coroutine_minit(module_number);
+    php_swoole_coroutine_system_minit(module_number);
     php_swoole_coroutine_scheduler_minit(module_number);
     php_swoole_channel_coro_minit(module_number);
     php_swoole_runtime_minit(module_number);
@@ -809,12 +805,7 @@ PHP_FUNCTION(swoole_last_error)
 
 PHP_FUNCTION(swoole_cpu_num)
 {
-    static long cpu_num = 0;
-    if (cpu_num == 0)
-    {
-        cpu_num = SW_MAX(1, sysconf(_SC_NPROCESSORS_CONF));
-    }
-    RETURN_LONG(cpu_num);
+    RETURN_LONG(SW_CPU_NUM);
 }
 
 PHP_FUNCTION(swoole_strerror)

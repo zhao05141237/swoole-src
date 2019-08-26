@@ -14,7 +14,6 @@
   +----------------------------------------------------------------------+
 */
 
-#include "swoole.h"
 #include "server.h"
 #include "client.h"
 
@@ -29,8 +28,7 @@ static int swProcessPool_worker_loop_ex(swProcessPool *pool, swWorker *worker);
 
 static void swProcessPool_free(swProcessPool *pool);
 
-
-static void swProcessPool_killTimeout(swTimer *timer, swTimer_node *tnode)
+static void swProcessPool_kill_timeout_worker(swTimer *timer, swTimer_node *tnode)
 {
     int i;
     pid_t reload_worker_pid = 0;
@@ -538,11 +536,11 @@ static int swProcessPool_worker_loop(swProcessPool *pool, swWorker *worker)
          */
         if (n < 0)
         {
-            if (errno == EINTR && SwooleWG.signal_alarm)
+            if (errno == EINTR && SwooleWG.signal_alarm && SwooleTG.timer)
             {
                 _alarm_handler:
                 SwooleWG.signal_alarm = 0;
-                swTimer_select(&SwooleG.timer);
+                swTimer_select(SwooleTG.timer);
             }
             continue;
         }
@@ -688,11 +686,11 @@ static int swProcessPool_worker_loop_ex(swProcessPool *pool, swWorker *worker)
          */
         if (n < 0)
         {
-            if (errno == EINTR && SwooleWG.signal_alarm)
+            if (errno == EINTR && SwooleWG.signal_alarm && SwooleTG.timer)
             {
                 _alarm_handler:
                 SwooleWG.signal_alarm = 0;
-                swTimer_select(&SwooleG.timer);
+                swTimer_select(SwooleTG.timer);
             }
             continue;
         }
@@ -736,7 +734,6 @@ int swProcessPool_add_worker(swProcessPool *pool, swWorker *worker)
 int swProcessPool_wait(swProcessPool *pool)
 {
     int pid, new_pid;
-//    int reload_worker_i = 0;
     pid_t reload_worker_pid = 0;
     int ret;
     int status;
@@ -751,10 +748,10 @@ int swProcessPool_wait(swProcessPool *pool)
     while (SwooleG.running)
     {
         pid = wait(&status);
-        if (SwooleWG.signal_alarm)
+        if (SwooleWG.signal_alarm && SwooleTG.timer)
         {
             SwooleWG.signal_alarm = 0;
-            swTimer_select(&SwooleG.timer);
+            swTimer_select(SwooleTG.timer);
         }
         if (pid < 0)
         {
@@ -779,7 +776,7 @@ int swProcessPool_wait(swProcessPool *pool)
                     memcpy(pool->reload_workers, pool->workers, sizeof(swWorker) * pool->worker_num);
                     if (pool->max_wait_time)
                     {
-                        swTimer_add(&SwooleG.timer, (long) (pool->max_wait_time * 1000), 0, pool, swProcessPool_killTimeout);
+                        swoole_timer_add((long) (pool->max_wait_time * 1000), SW_FALSE, swProcessPool_kill_timeout_worker, pool);
                     }
                 }
                 goto _kill_worker;

@@ -435,7 +435,6 @@ if test "$PHP_SWOOLE" != "no"; then
         src/memory/ring_buffer.c \
         src/memory/shared_memory.c \
         src/memory/table.c \
-        src/network/async_thread.cc \
         src/network/client.c \
         src/network/connection.c \
         src/network/dns.cc \
@@ -443,6 +442,7 @@ if test "$PHP_SWOOLE" != "no"; then
         src/network/stream.c \
         src/network/thread_pool.c \
         src/network/timer.c \
+        src/os/async_thread.cc \
         src/os/base.c \
         src/os/msg_queue.c \
         src/os/sendfile.c \
@@ -464,19 +464,19 @@ if test "$PHP_SWOOLE" != "no"; then
         src/protocol/ssl.c \
         src/protocol/websocket.c \
         src/reactor/base.cc \
-        src/reactor/epoll.c \
+        src/reactor/epoll.cc \
         src/reactor/kqueue.c \
         src/reactor/poll.c \
         src/reactor/select.c \
         src/server/base.c \
         src/server/manager.cc \
         src/server/master.cc \
-        src/server/port.c \
+        src/server/port.cc \
         src/server/process.cc \
         src/server/reactor_process.cc \
         src/server/reactor_thread.cc \
         src/server/static_handler.cc \
-        src/server/task_worker.c \
+        src/server/task_worker.cc \
         src/server/worker.cc \
         src/wrapper/client.cc \
         src/wrapper/event.cc \

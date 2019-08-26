@@ -552,7 +552,7 @@ enum swReturn_code http2_client::parse_frame(zval *return_value)
         zend_update_property_stringl(swoole_http2_client_coro_ce, zobject, ZEND_STRL("errMsg"), buf, length - SW_HTTP2_GOAWAY_SIZE);
         zend_update_property_long(swoole_http2_client_coro_ce, zobject, ZEND_STRL("serverLastStreamId"), server_last_stream_id);
         close();
-        return SW_CONTINUE;
+        return SW_CLOSE;
     }
     case SW_HTTP2_TYPE_RST_STREAM:
     {
@@ -605,9 +605,9 @@ enum swReturn_code http2_client::parse_frame(zval *return_value)
 #ifdef SW_HAVE_ZLIB
             if (stream->gzip)
             {
-                if (php_swoole_zlib_uncompress(&stream->gzip_stream, stream->gzip_buffer, buf, length) == SW_ERR)
+                if (php_swoole_zlib_decompress(&stream->gzip_stream, stream->gzip_buffer, buf, length) == SW_ERR)
                 {
-                    swWarn("uncompress failed");
+                    swWarn("decompress failed");
                     return SW_ERROR;
                 }
                 swString_append_ptr(stream->buffer, stream->gzip_buffer->str, stream->gzip_buffer->length);
@@ -676,7 +676,7 @@ enum swReturn_code http2_client::parse_frame(zval *return_value)
 }
 
 #ifdef SW_HAVE_ZLIB
-int php_swoole_zlib_uncompress(z_stream *stream, swString *buffer, char *body, int length)
+int php_swoole_zlib_decompress(z_stream *stream, swString *buffer, char *body, int length)
 {
     int status = 0;
 

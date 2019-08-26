@@ -44,12 +44,12 @@ struct _http_proxy
     uint8_t state;
     uint8_t dont_handshake;
     int proxy_port;
-    char *proxy_host;
-    char *user;
-    char *password;
+    const char *proxy_host;
+    const char *user;
+    const char *password;
     int l_user;
     int l_password;
-    char *target_host;
+    const char *target_host;
     int l_target_host;
     int target_port;
     char buf[512];
@@ -69,6 +69,7 @@ typedef struct _swClient
     int _redirect_to_socket;
     int _redirect_to_session;
 
+    uint32_t active :1;
     uint32_t async :1;
     uint32_t keep :1;
     uint32_t destroyed :1;
@@ -80,6 +81,8 @@ typedef struct _swClient
     uint32_t shutdown_read :1;
     uint32_t shutdown_write :1;
     uint32_t remove_delay :1;
+    uint32_t closed :1;
+    uint32_t high_watermark :1;
 
     /**
      * one package: length check
@@ -93,8 +96,8 @@ typedef struct _swClient
 
     uint32_t reuse_count;
 
-    char *server_str;
-    char *server_host;
+    const char *server_str;
+    const char *server_host;
     int server_port;
     void *ptr;
     void *params;
@@ -118,12 +121,7 @@ typedef struct _swClient
      */
     swSocketAddress remote_addr;
 
-    swConnection *socket;
-
-    /**
-     * reactor
-     */
-    swReactor *reactor;
+    swSocket *socket;
 
     void *object;
 
@@ -148,15 +146,16 @@ typedef struct _swClient
     void (*onBufferFull)(struct _swClient *cli);
     void (*onBufferEmpty)(struct _swClient *cli);
 
-    int (*connect)(struct _swClient *cli, char *host, int port, double _timeout, int sock_flag);
-    int (*send)(struct _swClient *cli, char *data, int length, int flags);
-    int (*sendfile)(struct _swClient *cli, char *filename, off_t offset, size_t length);
+    int (*connect)(struct _swClient *cli, const char *host, int port, double _timeout, int sock_flag);
+    int (*send)(struct _swClient *cli, const char *data, int length, int flags);
+    int (*sendfile)(struct _swClient *cli, const char *filename, off_t offset, size_t length);
     int (*recv)(struct _swClient *cli, char *data, int len, int flags);
     int (*pipe)(struct _swClient *cli, int write_fd, int is_session_id);
     int (*close)(struct _swClient *cli);
 
 } swClient;
 
+void swClient_init_reactor(swReactor *reactor);
 int swClient_create(swClient *cli, int type, int async);
 int swClient_sleep(swClient *cli);
 int swClient_wakeup(swClient *cli);

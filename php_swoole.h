@@ -313,6 +313,7 @@ void php_swoole_timer_minit(int module_number);
 // coroutine
 void php_swoole_async_coro_minit(int module_number);
 void php_swoole_coroutine_minit(int module_number);
+void php_swoole_coroutine_system_minit(int module_number);
 void php_swoole_coroutine_scheduler_minit(int module_number);
 void php_swoole_channel_coro_minit(int module_number);
 void php_swoole_runtime_minit(int module_number);
@@ -361,10 +362,6 @@ void php_swoole_event_init();
 void php_swoole_event_wait();
 void php_swoole_event_exit();
 
-// timer
-enum swBool_type php_swoole_timer_clear(swTimer_node *tnode);
-enum swBool_type php_swoole_timer_clear_all();
-
 void php_swoole_server_register_callbacks(swServer *serv);
 void php_swoole_trace_check(void *arg);
 void php_swoole_client_free(zval *zobject, swClient *cli);
@@ -380,7 +377,7 @@ int php_swoole_task_pack(swEventData *task, zval *data);
 zval* php_swoole_task_unpack(swEventData *task_result);
 
 #ifdef SW_HAVE_ZLIB
-int php_swoole_zlib_uncompress(z_stream *stream, swString *buffer, char *body, int length);
+int php_swoole_zlib_decompress(z_stream *stream, swString *buffer, char *body, int length);
 #endif
 
 static sw_inline void* swoole_get_object_by_handle(uint32_t handle)
@@ -443,7 +440,7 @@ int php_swoole_onPacket(swServer *, swEventData *);
 void php_swoole_onClose(swServer *, swDataHead *);
 void php_swoole_onBufferFull(swServer *, swDataHead *);
 void php_swoole_onBufferEmpty(swServer *, swDataHead *);
-ssize_t php_swoole_length_func(swProtocol *protocol, swConnection *conn, char *data, uint32_t length);
+ssize_t php_swoole_length_func(swProtocol *protocol, swSocket *_socket, char *data, uint32_t length);
 int php_swoole_client_onPackage(swConnection *conn, char *data, uint32_t length);
 zend_bool php_swoole_signal_isset_handler(int signo);
 
@@ -839,10 +836,12 @@ static sw_inline int sw_zend_register_function_alias
         return FAILURE;
     }
     SW_ASSERT(origin_function->common.type == ZEND_INTERNAL_FUNCTION);
-    char _alias[alias_length + 1];
-    strncpy(_alias, alias, alias_length)[alias_length] = '\0';
+    char *_alias = (char *) emalloc(alias_length + 1);
+    ((char *) memcpy(_alias, alias, alias_length))[alias_length] = '\0';
     zend_function_entry zfe[] = {{_alias, origin_function->internal_function.handler, ((zend_internal_arg_info *) origin_function->common.arg_info) - 1, origin_function->common.num_args, 0 }, PHP_FE_END};
-    return zend_register_functions(origin_function->common.scope, zfe, alias_function_table, origin_function->common.type);
+    int ret = zend_register_functions(origin_function->common.scope, zfe, alias_function_table, origin_function->common.type);
+    efree(_alias);
+    return ret;
 }
 
 static sw_inline int sw_zend_register_class_alias(const char *name, size_t name_len, zend_class_entry *ce)
@@ -1164,7 +1163,7 @@ static sw_inline int php_swoole_check_reactor()
     {
         return -1;
     }
-    if (sw_unlikely(!SwooleG.main_reactor))
+    if (sw_unlikely(!SwooleTG.reactor))
     {
         return php_swoole_reactor_init() == SW_OK ? 1 : -1;
     }

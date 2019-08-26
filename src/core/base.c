@@ -14,7 +14,7 @@
  +----------------------------------------------------------------------+
  */
 
-#include "swoole.h"
+#include "swoole_api.h"
 #include "atomic.h"
 #include "async.h"
 #include "coroutine_c_api.h"
@@ -47,7 +47,7 @@ static void swoole_fatal_error(int code, const char *format, ...);
 
 void swoole_init(void)
 {
-    if (SwooleG.running)
+    if (SwooleG.init)
     {
         return;
     }
@@ -57,13 +57,14 @@ void swoole_init(void)
     bzero(sw_error, SW_ERROR_MSG_SIZE);
 
     SwooleG.running = 1;
+    SwooleG.init = 1;
     SwooleG.enable_coroutine = 1;
 
     SwooleG.log_fd = STDOUT_FILENO;
     SwooleG.write_log = swLog_put;
     SwooleG.fatal_error = swoole_fatal_error;
 
-    SwooleG.cpu_num = sysconf(_SC_NPROCESSORS_ONLN);
+    SwooleG.cpu_num = SW_MAX(1, sysconf(_SC_NPROCESSORS_ONLN));
     SwooleG.pagesize = getpagesize();
     //get system uname
     uname(&SwooleG.uname);
@@ -83,7 +84,13 @@ void swoole_init(void)
     SwooleG.memory_pool = swMemoryGlobal_new(SW_GLOBAL_MEMORY_PAGESIZE, 1);
     if (SwooleG.memory_pool == NULL)
     {
-        printf("[Master] Fatal Error: global memory allocation failure");
+        printf("[Core] Fatal Error: global memory allocation failure");
+        exit(1);
+    }
+
+    if (swMutex_create(&SwooleG.lock, 0) < 0)
+    {
+        printf("[Core] mutex init failure");
         exit(1);
     }
 
@@ -100,6 +107,12 @@ void swoole_init(void)
     }
 
     SwooleG.socket_buffer_size = SW_SOCKET_BUFFER_SIZE;
+    SwooleG.socket_array = swArray_new(1024, sizeof(swSocket));
+    if (!SwooleG.socket_array)
+    {
+        swSysWarn("[Core] Fatal Error: socekt array memory allocation failure");
+        exit(1);
+    }
 
     SwooleTG.buffer_stack = swString_new(SW_STACK_BUFFER_SIZE);
     if (SwooleTG.buffer_stack == NULL)
@@ -134,24 +147,28 @@ void swoole_init(void)
 
 void swoole_clean(void)
 {
+    if (SwooleG.task_tmpdir)
+    {
+        sw_free(SwooleG.task_tmpdir);
+    }
+    if (SwooleTG.timer)
+    {
+        swoole_timer_free();
+    }
+    if (SwooleTG.reactor)
+    {
+        swoole_event_free();
+    }
+    if (SwooleG.socket_array)
+    {
+        swArray_free(SwooleG.socket_array);
+    }
     //free the global memory
     if (SwooleG.memory_pool != NULL)
     {
-        if (SwooleG.timer.initialized)
-        {
-            swTimer_free(&SwooleG.timer);
-        }
-        if (SwooleG.task_tmpdir)
-        {
-            sw_free(SwooleG.task_tmpdir);
-        }
-        if (SwooleG.main_reactor)
-        {
-            swReactor_destroy(SwooleG.main_reactor);
-        }
         SwooleG.memory_pool->destroy(SwooleG.memory_pool);
-        bzero(&SwooleG, sizeof(SwooleG));
     }
+    bzero(&SwooleG, sizeof(SwooleG));
 }
 
 pid_t swoole_fork(int flags)
@@ -176,9 +193,9 @@ pid_t swoole_fork(int flags)
         /**
          * [!!!] All timers and event loops must be cleaned up after fork
          */
-        if (SwooleG.timer.initialized)
+        if (SwooleTG.timer)
         {
-            swTimer_free(&SwooleG.timer);
+            swoole_timer_free();
         }
         if (!(flags & SW_FORK_EXEC))
         {
@@ -195,6 +212,14 @@ pid_t swoole_fork(int flags)
              * reopen log file
              */
             swLog_reopen(0);
+            /**
+             * reset eventLoop
+             */
+            if (SwooleTG.reactor)
+            {
+                swoole_event_free();
+                swTraceLog(SW_TRACE_REACTOR, "reactor has been destroyed");
+            }
         }
         else
         {
@@ -202,15 +227,6 @@ pid_t swoole_fork(int flags)
              * close log fd
              */
             swLog_free();
-        }
-        /**
-         * reset eventLoop
-         */
-        if (SwooleG.main_reactor)
-        {
-            swReactor_destroy(SwooleG.main_reactor);
-            SwooleG.main_reactor = NULL;
-            swTraceLog(SW_TRACE_REACTOR, "reactor has been destroyed");
         }
         /**
          * reset signal handler

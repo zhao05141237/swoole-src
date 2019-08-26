@@ -57,7 +57,6 @@ int swReactorSelect_create(swReactor *reactor)
 
     object->fds = NULL;
     object->maxfd = 0;
-    bzero(reactor->handler, sizeof(reactor->handler));
     reactor->object = object;
     //binding method
     reactor->add = swReactorSelect_add;
@@ -282,7 +281,7 @@ int swReactorSelect_wait(swReactor *reactor, struct timeval *timeo)
                 }
                 if (!event.socket->removed && (event.socket->events & SW_EVENT_ONCE))
                 {
-                    reactor->del(reactor, event.fd);
+                    swReactorSelect_del(reactor, event.fd);
                 }
             }
         }

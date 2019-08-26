@@ -30,8 +30,8 @@ struct wait_task
 };
 
 static unordered_map<int, wait_task *> waitpid_map;
-static unordered_map<int, int> child_processes;
 static queue<wait_task *> wait_list;
+static unordered_map<int, int> child_processes;
 
 bool signal_init = false;
 
@@ -85,12 +85,17 @@ void swoole_coroutine_signal_init()
         signal_init = true;
         swSignal_add(SIGCHLD, signal_handler);
 #ifdef HAVE_SIGNALFD
-        if (SwooleG.use_signalfd && !swReactor_isset_handler(SwooleG.main_reactor, SW_FD_SIGNAL))
+        if (SwooleG.use_signalfd && !swReactor_isset_handler(SwooleTG.reactor, SW_FD_SIGNAL))
         {
-            swSignalfd_setup(SwooleG.main_reactor);
+            swSignalfd_setup(SwooleTG.reactor);
         }
 #endif
     }
+}
+
+size_t swoole_coroutine_wait_count()
+{
+    return wait_list.size() + waitpid_map.size();
 }
 
 pid_t swoole_coroutine_waitpid(pid_t __pid, int *__stat_loc, int __options)
@@ -103,7 +108,7 @@ pid_t swoole_coroutine_waitpid(pid_t __pid, int *__stat_loc, int __options)
         return __pid;
     }
 
-    if (sw_unlikely(SwooleG.main_reactor == nullptr || !Coroutine::get_current() || (__options & WNOHANG)))
+    if (sw_unlikely(SwooleTG.reactor == nullptr || !Coroutine::get_current() || (__options & WNOHANG)))
     {
         return waitpid(__pid, __stat_loc, __options);
     }
@@ -129,7 +134,7 @@ pid_t swoole_coroutine_waitpid(pid_t __pid, int *__stat_loc, int __options)
 
 pid_t swoole_coroutine_wait(int *__stat_loc)
 {
-    if (sw_unlikely(SwooleG.main_reactor == nullptr || !Coroutine::get_current()))
+    if (sw_unlikely(SwooleTG.reactor == nullptr || !Coroutine::get_current()))
     {
         return wait( __stat_loc);
     }

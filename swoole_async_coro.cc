@@ -33,20 +33,6 @@ using std::vector;
 
 typedef struct
 {
-    zval _callback;
-    zval _filename;
-    zval *callback;
-    zval *filename;
-    uint32_t *refcount;
-    off_t offset;
-    uint16_t type;
-    uint8_t once;
-    char *content;
-    uint32_t length;
-} file_request;
-
-typedef struct
-{
     char address[16];
     time_t update_time;
 } dns_cache;
@@ -64,8 +50,6 @@ static std::unordered_map<std::string, dns_cache*> request_cache_map;
 void php_swoole_async_coro_minit(int module_number)
 {
     bzero(&SwooleAIO, sizeof(SwooleAIO));
-    SwooleAIO.min_thread_count = SW_AIO_THREAD_MIN_NUM;
-    SwooleAIO.max_thread_count = SW_AIO_THREAD_MAX_NUM;
 }
 
 void php_swoole_async_coro_rshutdown()
@@ -78,7 +62,7 @@ void php_swoole_async_coro_rshutdown()
 
 PHP_FUNCTION(swoole_async_set)
 {
-    if (SwooleG.main_reactor)
+    if (SwooleTG.reactor)
     {
         php_swoole_fatal_error(E_ERROR, "eventLoop has already been created. unable to change settings");
         RETURN_FALSE;

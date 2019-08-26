@@ -63,7 +63,6 @@ int swReactorPoll_create(swReactor *reactor, int max_fd_num)
     }
     object->max_fd_num = max_fd_num;
     reactor->max_event_num = max_fd_num;
-    bzero(reactor->handler, sizeof(reactor->handler));
     reactor->object = object;
     //binding method
     reactor->add = swReactorPoll_add;
@@ -282,7 +281,7 @@ static int swReactorPoll_wait(swReactor *reactor, struct timeval *timeo)
                 }
                 if (!event.socket->removed && (event.socket->events & SW_EVENT_ONCE))
                 {
-                    reactor->del(reactor, event.fd);
+                    swReactorPoll_del(reactor, event.fd);
                 }
             }
         }

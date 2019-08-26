@@ -177,8 +177,12 @@ static sw_inline const char* http_get_method_name(int method)
         return "SUBSCRIBE";
     case PHP_HTTP_UNSUBSCRIBE:
         return "UNSUBSCRIBE";
+        /* proxy */
+    case PHP_HTTP_PURGE:
+        return "PURGE";
+        /* unknown */
     case PHP_HTTP_NOT_IMPLEMENTED:
-        return "IMPLEMENTED";
+        return "UNKNOWN";
     default:
         return NULL;
     }
@@ -389,13 +393,14 @@ static int http_request_on_header_value(swoole_http_parser *parser, const char *
         ctx->websocket = 1;
         if (ctx->co_socket)
         {
-            return 0;
+            goto _add_header;
         }
         swServer *serv = (swServer *) ctx->private_data;
         swConnection *conn = swWorker_get_connection(serv, ctx->fd);
         if (!conn)
         {
             swWarn("connection[%d] is closed", ctx->fd);
+            efree(header_name);
             return SW_ERR;
         }
         swListenPort *port = (swListenPort *) serv->connection_list[conn->server_fd].object;
@@ -454,8 +459,7 @@ static int http_request_on_header_value(swoole_http_parser *parser, const char *
     }
 #endif
 
-    add_assoc_stringl_ex(zheader, header_name, header_len, (char *) at, length);
-
+    _add_header: add_assoc_stringl_ex(zheader, header_name, header_len, (char *) at, length);
     efree(header_name);
 
     return 0;

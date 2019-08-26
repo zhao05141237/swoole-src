@@ -14,7 +14,6 @@
  +----------------------------------------------------------------------+
  */
 
-#include "swoole.h"
 #include "server.h"
 
 #include <signal.h>
@@ -419,7 +418,7 @@ static int swFactoryProcess_finish(swFactory *factory, swSendData *resp)
         swoole_error_log(SW_LOG_NOTICE, SW_ERROR_SESSION_NOT_EXIST, "connection[fd=%d] does not exists", session_id);
         return SW_ERR;
     }
-    else if ((conn->closed || conn->removed) && resp->info.type != SW_EVENT_CLOSE)
+    else if ((conn->closed || conn->peer_closed) && resp->info.type != SW_EVENT_CLOSE)
     {
         swoole_error_log(SW_LOG_NOTICE, SW_ERROR_SESSION_CLOSED,
                 "send %d byte failed, because connection[fd=%d] is closed", resp->info.len, session_id);
@@ -445,15 +444,15 @@ static int swFactoryProcess_finish(swFactory *factory, swSendData *resp)
     {
         int _len = resp->info.len;
         int _header = htonl(_len + sizeof(resp->info));
-        if (SwooleG.main_reactor->write(SwooleG.main_reactor, serv->last_stream_fd, (char*) &_header, sizeof(_header)) < 0)
+        if (SwooleTG.reactor->write(SwooleTG.reactor, serv->last_stream_fd, (char*) &_header, sizeof(_header)) < 0)
         {
             return SW_ERR;
         }
-        if (SwooleG.main_reactor->write(SwooleG.main_reactor, serv->last_stream_fd, &resp->info, sizeof(resp->info)) < 0)
+        if (SwooleTG.reactor->write(SwooleTG.reactor, serv->last_stream_fd, &resp->info, sizeof(resp->info)) < 0)
         {
             return SW_ERR;
         }
-        if (SwooleG.main_reactor->write(SwooleG.main_reactor, serv->last_stream_fd, resp->data, _len) < 0)
+        if (SwooleTG.reactor->write(SwooleTG.reactor, serv->last_stream_fd, resp->data, _len) < 0)
         {
             return SW_ERR;
         }

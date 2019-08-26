@@ -855,7 +855,7 @@ static void php_swoole_task_wait_co(swServer *serv, swEventData *req, double tim
     }
 
     long ms = (long) (timeout * 1000);
-    swTimer_node *timer = swTimer_add(&SwooleG.timer, ms, 0, task_co, php_swoole_task_onTimeout);
+    swTimer_node *timer = swoole_timer_add(ms, SW_FALSE, php_swoole_task_onTimeout, task_co);
     if (timer)
     {
         task_co->timer = timer;
@@ -1236,7 +1236,7 @@ int php_swoole_onPacket(swServer *serv, swEventData *req)
     swConnection *from_sock = swServer_connection_get(serv, req->info.server_fd);
     if (from_sock)
     {
-        add_assoc_long(&zaddr, "server_port", swConnection_get_port(from_sock));
+        add_assoc_long(&zaddr, "server_port", swConnection_get_port(from_sock->socket_type, &from_sock->info));
     }
 
     char address[INET6_ADDRSTRLEN];
@@ -1375,7 +1375,7 @@ static int php_swoole_onFinish(swServer *serv, swEventData *req)
             zval *retval = NULL;
             if (task_co->timer)
             {
-                swTimer_del(&SwooleG.timer, task_co->timer);
+                swoole_timer_del(task_co->timer);
             }
             php_coro_context *context = &task_co->context;
             int ret = PHPCoroutine::resume_m(context, zdata, retval);
@@ -1414,7 +1414,7 @@ static int php_swoole_onFinish(swServer *serv, swEventData *req)
             zval *retval = NULL;
             if (task_co->timer)
             {
-                swTimer_del(&SwooleG.timer, task_co->timer);
+                swoole_timer_del(task_co->timer);
                 task_co->timer = NULL;
             }
             php_coro_context *context = &task_co->context;
@@ -1759,7 +1759,7 @@ static enum swReturn_code php_swoole_server_send_resume(swServer *serv, php_coro
 
     if (context->timer)
     {
-        swTimer_del(&SwooleG.timer, (swTimer_node *) context->timer);
+        swoole_timer_del((swTimer_node *) context->timer);
         context->timer = NULL;
     }
 
@@ -1793,7 +1793,7 @@ void php_swoole_server_send_yield(swServer *serv, int fd, zval *zdata, zval *ret
     if (serv->send_timeout > 0)
     {
         context->private_data = (void*) (long) fd;
-        context->timer = swTimer_add(&SwooleG.timer, (long) (serv->send_timeout * 1000), 0, context, php_swoole_onSendTimeout);
+        context->timer = swoole_timer_add((long) (serv->send_timeout * 1000), SW_FALSE, php_swoole_onSendTimeout, context);
     }
     else
     {
@@ -1926,7 +1926,7 @@ static PHP_METHOD(swoole_server, __construct)
         RETURN_FALSE;
     }
 
-    if (SwooleG.main_reactor)
+    if (SwooleTG.reactor)
     {
         zend_throw_exception_ex(swoole_exception_ce, -2, "eventLoop has already been created. unable to create %s", SW_Z_OBJCE_NAME_VAL_P(zserv));
         RETURN_FALSE;
@@ -1976,7 +1976,7 @@ static PHP_METHOD(swoole_server, __construct)
     }
     else
     {
-        swListenPort *port = swServer_add_port(serv, sock_type, host, serv_port);
+        swListenPort *port = swServer_add_port(serv, (enum swSocket_type) sock_type, host, serv_port);
         if (!port)
         {
             zend_throw_exception_ex(
@@ -2137,7 +2137,7 @@ static PHP_METHOD(swoole_server, set)
         serv->reactor_num = (uint16_t) zval_get_long(v);
         if (serv->reactor_num <= 0)
         {
-            serv->reactor_num = SwooleG.cpu_num;
+            serv->reactor_num = SW_CPU_NUM;
         }
     }
     if (php_swoole_array_get_value(vht, "single_thread", v))
@@ -2150,7 +2150,7 @@ static PHP_METHOD(swoole_server, set)
         serv->worker_num = (uint16_t) zval_get_long(v);
         if (serv->worker_num <= 0)
         {
-            serv->worker_num = SwooleG.cpu_num;
+            serv->worker_num = SW_CPU_NUM;
         }
     }
     //max wait time
@@ -2651,7 +2651,7 @@ static PHP_METHOD(swoole_server, listen)
         RETURN_FALSE;
     }
 
-    swListenPort *ls = swServer_add_port(serv, (int) sock_type, host, (int) port);
+    swListenPort *ls = swServer_add_port(serv, (enum swSocket_type) sock_type, host, (int) port);
     if (!ls)
     {
         RETURN_FALSE;
@@ -3527,7 +3527,7 @@ static PHP_METHOD(swoole_server, taskCo)
     task_co->list = list;
     task_co->count = n_task;
 
-    swTimer_node *timer = swTimer_add(&SwooleG.timer, ms, 0, task_co, php_swoole_task_onTimeout);
+    swTimer_node *timer = swoole_timer_add(ms, SW_FALSE, php_swoole_task_onTimeout, task_co);
     if (timer)
     {
         task_co->timer = timer;
@@ -3806,13 +3806,13 @@ static PHP_METHOD(swoole_server, getClientInfo)
         swConnection *from_sock = swServer_connection_get(serv, conn->server_fd);
         if (from_sock)
         {
-            add_assoc_long(return_value, "server_port", swConnection_get_port(from_sock));
+            add_assoc_long(return_value, "server_port", swConnection_get_port(from_sock->socket_type, &from_sock->info));
         }
         add_assoc_long(return_value, "server_fd", conn->server_fd);
         add_assoc_long(return_value, "socket_fd", conn->fd);
         add_assoc_long(return_value, "socket_type", conn->socket_type);
-        add_assoc_long(return_value, "remote_port", swConnection_get_port(conn));
-        add_assoc_string(return_value, "remote_ip", (char *) swConnection_get_ip(conn));
+        add_assoc_long(return_value, "remote_port", swConnection_get_port(conn->socket_type, &conn->info));
+        add_assoc_string(return_value, "remote_ip", (char *) swConnection_get_ip(conn->socket_type, &conn->info));
         add_assoc_long(return_value, "reactor_id", conn->reactor_id);
         add_assoc_long(return_value, "connect_time", conn->connect_time);
         add_assoc_long(return_value, "last_time", conn->last_time);
@@ -3878,7 +3878,7 @@ static PHP_METHOD(swoole_server, getClientList)
         if (conn->active && !conn->closed)
         {
 #ifdef SW_USE_OPENSSL
-            if (conn->ssl && conn->ssl_state != SW_SSL_STATE_READY)
+            if (conn->ssl && !conn->ssl_ready)
             {
                 continue;
             }
@@ -4052,9 +4052,9 @@ static PHP_METHOD(swoole_server, stop)
 
     if (worker_id == SwooleWG.id && wait_reactor == 0)
     {
-        if (SwooleG.main_reactor != NULL)
+        if (SwooleTG.reactor != NULL)
         {
-            SwooleG.main_reactor->running = 0;
+            SwooleTG.reactor->running = 0;
         }
         SwooleG.running = 0;
     }
@@ -4103,7 +4103,7 @@ static PHP_METHOD(swoole_connection_iterator, valid)
         if (conn->active && !conn->closed)
         {
 #ifdef SW_USE_OPENSSL
-            if (conn->ssl && conn->ssl_state != SW_SSL_STATE_READY)
+            if (conn->ssl && !conn->ssl_ready)
             {
                 continue;
             }
